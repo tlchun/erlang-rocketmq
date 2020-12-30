@@ -7,8 +7,6 @@
 %%% Created : 07. 12月 2020 12:52
 %%%-------------------------------------------------------------------
 
--file("rocketmq_app.erl", 1).
-
 -module(rocketmq_app).
 
 -behaviour(application).

@@ -10,7 +10,6 @@
 -module(rocketmq_sup).
 
 -behaviour(supervisor).
-
 -export([start_link/0, init/1]).
 
 -vsn("4.2.1").
