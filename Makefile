@@ -1,4 +1,4 @@
-PROJECT = mongodb
+PROJECT = erlang-rocketmq
 
 DIALYZER = dialyzer
 REBAR = $(shell which rebar || echo ./rebar)
