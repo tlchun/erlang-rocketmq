@@ -37,19 +37,19 @@ send_batch_message_v2(Opaque, ProducerGroup, Topic, QueueId, Payloads) ->
 heart_beat(Opaque, ClientID, GroupName) ->
   Payload = [{<<"clientID">>, ClientID}, {<<"consumerDataSet">>, []},
     {<<"producerDataSet">>, [[{<<"groupName">>, GroupName}], [{<<"groupName">>, <<"CLIENT_INNER_PRODUCER">>}]]}],
-  serialized(34, Opaque, jsonr:encode(Payload)).
+  serialized(34, Opaque, jsone:encode(Payload)).
 
 %% 解析
 parse(<<Len:32, HeaderLen:32,
   HeaderData:HeaderLen/binary, Bin/binary>>) ->
   case Bin == <<>> of
-    true -> {jsonr:decode(HeaderData), undefined, Bin};
+    true -> {jsone:decode(HeaderData), undefined, Bin};
     false ->
       case Len - 4 - HeaderLen of
-        0 -> {jsonr:decode(HeaderData), undefined, Bin};
+        0 -> {jsone:decode(HeaderData), undefined, Bin};
         PayloadLen ->
           <<Payload:PayloadLen/binary, Bin1/binary>> = Bin,
-          {jsonr:decode(HeaderData), jsonr:decode(Payload), Bin1}
+          {jsone:decode(HeaderData), jsone:decode(Payload), Bin1}
       end
   end;
 parse(Bin) -> {undefined, undefined, Bin}.
@@ -73,7 +73,7 @@ serialized(Code, Opaque, Payload) ->
 
 serialized(Code, Opaque, Header0, Payload) ->
   Header = [{<<"code">>, Code}, {<<"opaque">>, Opaque}] ++ Header0 ++ header_base(),
-  HeaderData = jsonr:encode(Header),
+  HeaderData = jsone:encode(Header),
   HeaderLen = size(HeaderData),
   Len = 4 + HeaderLen + size(Payload),
   <<Len:32, HeaderLen:32, HeaderData/binary, Payload/binary>>.

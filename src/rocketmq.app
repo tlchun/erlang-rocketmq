@@ -6,5 +6,5 @@
                         rocketmq_producers,rocketmq_producers_sup,
                         rocketmq_protocol_frame,rocketmq_sup]},
               {registered,[rocketmq_sup]},
-              {applications,[kernel,stdlib,jsonr]},
+              {applications,[kernel,stdlib,jsone]},
               {mod,{rocketmq_app,[]}}]}.
