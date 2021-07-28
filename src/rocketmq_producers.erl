@@ -11,15 +11,19 @@
 
 -export([start_link/4]).
 
--export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
+-export([code_change/3,
+  handle_call/3,
+  handle_cast/2,
+  handle_info/2,
+  init/1,
+  terminate/2]).
 
 -export([start_supervised/4, stop_supervised/1]).
 
 -export([pick_producer/1]).
 
 -record(state,
-{
-  topic,
+{topic,
   client_id,
   workers,
   queue_nums,
@@ -29,11 +33,9 @@
   broker_datas,
   ref_topic_route_interval = 5000}).
 
--vsn("4.2.1").
 
 start_supervised(ClientId, ProducerGroup, Topic, ProducerOpts) ->
-  {ok, Pid} =
-    rocketmq_producers_sup:ensure_present(ClientId, ProducerGroup, Topic, ProducerOpts),
+  {ok, Pid} = rocketmq_producers_sup:ensure_present(ClientId, ProducerGroup, Topic, ProducerOpts),
   {QueueNums, Workers} = gen_server:call(Pid, get_workers, infinity),
   {ok, #{client => ClientId, topic => Topic, workers => Workers, queue_nums => QueueNums}}.
 
@@ -54,11 +56,8 @@ do_pick_producer(QueueNum, QueueNums, Workers) ->
   case is_pid(Pid) andalso is_process_alive(Pid) of
     true -> {QueueNum, Pid};
     false ->
-      R = {QueueNum, Pid} = pick_next_alive(Workers,
-        QueueNum,
-        QueueNums),
-      _ = put(rocketmq_roundrobin,
-        (QueueNum + 1) rem QueueNums),
+      R = {QueueNum, Pid} = pick_next_alive(Workers, QueueNum, QueueNums),
+      _ = put(rocketmq_roundrobin, (QueueNum + 1) rem QueueNums),
       R
   end.
 
@@ -74,8 +73,7 @@ pick_next_alive(Workers, QueueNum, QueueNums, Tried) ->
     Pid ->
       case is_alive(Pid) of
         true -> {QueueNum, Pid};
-        false ->
-          pick_next_alive(Workers, (QueueNum + 1) rem QueueNums, QueueNums, Tried + 1)
+        false -> pick_next_alive(Workers, (QueueNum + 1) rem QueueNums, QueueNums, Tried + 1)
       end
   end.
 
@@ -101,10 +99,7 @@ pick_queue_num(QueueNums) ->
   QueueNum.
 
 start_link(ClientId, ProducerGroup, Topic, ProducerOpts) ->
-  gen_server:start_link({local, get_name(ProducerOpts)},
-    rocketmq_producers,
-    [ClientId, ProducerGroup, Topic, ProducerOpts],
-    []).
+  gen_server:start_link({local, get_name(ProducerOpts)}, rocketmq_producers, [ClientId, ProducerGroup, Topic, ProducerOpts], []).
 
 init([ClientId, ProducerGroup, Topic, ProducerOpts]) ->
   erlang:process_flag(trap_exit, true),
@@ -115,9 +110,7 @@ init([ClientId, ProducerGroup, Topic, ProducerOpts]) ->
       producer_opts = ProducerOpts,
       producer_group = ProducerGroup,
       ref_topic_route_interval = RefTopicRouteInterval,
-      workers =
-      ets:new(get_name(ProducerOpts),
-        [protected, named_table, {read_concurrency, true}])},
+      workers = ets:new(get_name(ProducerOpts), [protected, named_table, {read_concurrency, true}])},
     0}.
 
 handle_call(get_workers, _From, State = #state{workers = Workers, queue_nums = QueueNum}) ->
@@ -130,17 +123,12 @@ handle_cast(_Cast, State) -> {noreply, State}.
 handle_info(timeout, State = #state{client_id = ClientId, topic = Topic}) ->
   case rocketmq_client_sup:find_client(ClientId) of
     {ok, Pid} ->
-      Result = rocketmq_client:get_routeinfo_by_topic(Pid,
-        Topic),
-      {QueueNums, NewProducers, BrokerDatas} =
-        maybe_start_producer(Pid, Result, State),
-      {noreply,
-        State#state{queue_nums = QueueNums,
-          producers = NewProducers, broker_datas = BrokerDatas}};
+      Result = rocketmq_client:get_routeinfo_by_topic(Pid, Topic),
+      {QueueNums, NewProducers, BrokerDatas} = maybe_start_producer(Pid, Result, State),
+      {noreply, State#state{queue_nums = QueueNums, producers = NewProducers, broker_datas = BrokerDatas}};
     {error, Reason} -> {stop, Reason, State}
   end;
-handle_info({'EXIT', Pid, _Error},
-    State = #state{workers = Workers, producers = Producers}) ->
+handle_info({'EXIT', Pid, _Error}, State = #state{workers = Workers, producers = Producers}) ->
   case maps:get(Pid, Producers, undefined) of
     undefined ->
       log_error("Not find Pid:~p producer", [Pid]),
@@ -167,9 +155,9 @@ handle_info(ref_topic_route,
           BrokerDatas1 = lists:sort(maps:get(<<"brokerDatas">>, Payload, [])),
           case BrokerDatas1 -- lists:sort(BrokerDatas) of
             [] -> {noreply, State};
-            BrokerDatas2 -> QueueDatas = maps:get(<<"queueDatas">>, Payload, []),
-              {NewQueueNums, NewProducers} =
-                start_producer(QueueNums, BrokerDatas2, QueueDatas, Producers, State),
+            BrokerDatas2 ->
+              QueueDatas = maps:get(<<"queueDatas">>, Payload, []),
+              {NewQueueNums, NewProducers} = start_producer(QueueNums, BrokerDatas2, QueueDatas, Producers, State),
               ets:insert(rocketmq_topic, {Topic, NewQueueNums}),
               {noreply, State#state{queue_nums = NewQueueNums, producers = NewProducers, broker_datas = BrokerDatas1}}
           end
@@ -191,7 +179,7 @@ log_error(Fmt, Args) ->
   error_logger:error_msg(Fmt, Args).
 
 maybe_start_producer(Pid, {Header, undefined}, State = #state{topic = Topic}) ->
-  log_error("Start topic:~p producer fail:~p", [Topic, maps:get(<<"remark">>, Header, undefined)]),
+  log_error("Start topic:~p producer fail:~p",[Topic, maps:get(<<"remark">>, Header, undefined)]),
   Result = rocketmq_client:get_routeinfo_by_topic(Pid, <<"TBW102">>),
   maybe_start_producer(Pid, Result, State);
 maybe_start_producer(_, {_, Payload}, State = #state{producers = Producers}) ->
@@ -209,30 +197,29 @@ find_queue_data(Key, [QueueData | QueueDatas]) ->
   end.
 
 start_producer(Start, BrokerDatas, QueueDatas, Producers, State = #state{topic = Topic}) ->
-  lists:foldl(fun (BrokerData, {QueueNumAcc, ProducersAcc}) ->
-    BrokerAddrs = maps:get(<<"brokerAddrs">>, BrokerData),
-    BrokerName = maps:get(<<"brokerName">>, BrokerData),
-    QueueData = find_queue_data(BrokerName, QueueDatas),
-    case maps:get(<<"perm">>, QueueData) =:= 4 of
-      true ->
-        log_error("Start producer fail tioic:~p permission denied:~p", [Topic]),
-        {QueueNumAcc, ProducersAcc};
-      false ->
-        QueueNum = maps:get(<<"writeQueueNums">>, QueueData),
-        QueueNumAcc1 = QueueNumAcc + QueueNum,
-        ProducersAcc1 = lists:foldl(fun (QueueSeq, Acc) -> do_start_producer(BrokerAddrs, QueueSeq, Acc, State) end,
-          ProducersAcc,
-          lists:seq(QueueNumAcc, QueueNumAcc1 - 1)),
-        {QueueNumAcc1, ProducersAcc1}
-    end
-              end,
-    {Start, Producers},
-    BrokerDatas).
+  lists:foldl(
+    fun (BrokerData, {QueueNumAcc, ProducersAcc}) ->
+      BrokerAddrs = maps:get(<<"brokerAddrs">>, BrokerData),
+      BrokerName = maps:get(<<"brokerName">>, BrokerData),
+      QueueData = find_queue_data(BrokerName, QueueDatas),
+      case maps:get(<<"perm">>, QueueData) =:= 4 of
+        true ->
+          log_error("Start producer fail tioic:~p permission denied:~p", [Topic]),
+          {QueueNumAcc, ProducersAcc};
+        false ->
+          QueueNum = maps:get(<<"writeQueueNums">>, QueueData),
+          QueueNumAcc1 = QueueNumAcc + QueueNum,
+          ProducersAcc1 = lists:foldl(
+            fun (QueueSeq, Acc) ->
+              do_start_producer(BrokerAddrs, QueueSeq, Acc, State)
+            end, ProducersAcc, lists:seq(QueueNumAcc, QueueNumAcc1 - 1)),
+          {QueueNumAcc1, ProducersAcc1}
+      end
+    end, {Start, Producers}, BrokerDatas).
 
-do_start_producer(BrokerAddrs, QueueSeq, Producers,
-    #state{workers = Workers, topic = Topic, producer_group = ProducerGroup, producer_opts = ProducerOpts}) ->
+do_start_producer(BrokerAddrs, QueueSeq, Producers,#state{workers = Workers, topic = Topic, producer_group = ProducerGroup, producer_opts = ProducerOpts}) ->
   Server = maps:get(<<"0">>, BrokerAddrs),
-  {ok, Producer} = rocketmq_producer:start_link(QueueSeq, Topic, Server, ProducerGroup, ProducerOpts),
+  {ok, Producer} = rocketmq_producer:start_link(QueueSeq,Topic, Server, ProducerGroup,ProducerOpts),
   ets:insert(Workers, {QueueSeq, Producer}),
   maps:put(Producer, {BrokerAddrs, QueueSeq}, Producers).
 

@@ -8,12 +8,8 @@
 %%%-------------------------------------------------------------------
 
 -module(rocketmq_app).
-
 -behaviour(application).
-
 -export([start/2, stop/1]).
-
--vsn("4.2.1").
 
 start(_, _) -> rocketmq_sup:start_link().
 

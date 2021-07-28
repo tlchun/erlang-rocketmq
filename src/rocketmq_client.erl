@@ -8,24 +8,16 @@
 %%%-------------------------------------------------------------------
 -module(rocketmq_client).
 
+
 -behaviour(gen_server).
-
 -export([start_link/3]).
-
 -export([get_routeinfo_by_topic/2]).
-
 -export([get_status/1]).
 
--export([init/1,
-  handle_call/3,
-  handle_cast/2,
-  handle_info/2,
-  terminate/2,
-  code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {requests, opaque_id, sock, servers, opts, last_bin = <<>>}).
 
--vsn("4.2.1").
 
 start_link(ClientId, Servers, Opts) ->
   gen_server:start_link({local, ClientId}, rocketmq_client, [Servers, Opts], []).
@@ -40,11 +32,11 @@ init([Servers, Opts]) ->
   State = #state{servers = Servers, opts = Opts},
   case get_sock(Servers, undefined) of
     error -> {error, fail_to_connect_rocketmq_server};
-    Sock -> {ok, State#state{sock = Sock, opaque_id = 1, requests = #{}}}
+    Sock ->
+      {ok, State#state{sock = Sock, opaque_id = 1, requests = #{}}}
   end.
 
-handle_call({get_routeinfo_by_topic, Topic}, From,
-    State = #state{opaque_id = OpaqueId, sock = Sock, requests = Reqs, servers = Servers}) ->
+handle_call({get_routeinfo_by_topic, Topic}, From, State = #state{opaque_id = OpaqueId, sock = Sock, requests = Reqs, servers = Servers}) ->
   case get_sock(Servers, Sock) of
     error ->
       log_error("Servers: ~p down", [Servers]),
@@ -81,9 +73,9 @@ code_change(_, State, _) -> {ok, State}.
 handle_response(<<>>, State) ->
   {noreply, State, hibernate};
 handle_response(Bin, State = #state{requests = Reqs, last_bin = LastBin}) ->
-  case rocketmq_protocol_frame:parse(<<LastBin/binary, Bin/binary>>)
-  of
-    {undefined, undefined, Bin1} -> {nodelay, State#state{last_bin = Bin1}, hibernate};
+  case rocketmq_protocol_frame:parse(<<LastBin/binary, Bin/binary>>) of
+    {undefined, undefined, Bin1} ->
+      {nodelay, State#state{last_bin = Bin1}, hibernate};
     {Header, Payload, Bin1} ->
       NewReqs = do_response(Header, Payload, Reqs),
       handle_response(Bin1, State#state{requests = NewReqs, last_bin = <<>>})
@@ -107,8 +99,7 @@ get_sock(_Servers, Sock) -> Sock.
 
 try_connect([]) -> error;
 try_connect([{Host, Port} | Servers]) ->
-  case gen_tcp:connect(Host,
-    Port, [binary, {packet, raw}, {reuseaddr, true}, {nodelay, true}, {active, true}, {reuseaddr, true}, {send_timeout, 60000}], 60000) of
+  case gen_tcp:connect(Host, Port, [binary, {packet, raw}, {reuseaddr, true}, {nodelay, true}, {active, true}, {reuseaddr, true}, {send_timeout, 60000}], 60000) of
     {ok, Sock} ->
       tune_buffer(Sock),
       gen_tcp:controlling_process(Sock, self()),
@@ -123,3 +114,4 @@ next_opaque_id(State = #state{opaque_id = 65535}) ->
   State#state{opaque_id = 1};
 next_opaque_id(State = #state{opaque_id = OpaqueId}) ->
   State#state{opaque_id = OpaqueId + 1}.
+
