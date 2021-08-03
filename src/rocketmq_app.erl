@@ -8,12 +8,9 @@
 %%%-------------------------------------------------------------------
 -module(rocketmq_app).
 -behaviour(application).
-
 -export([start/2, stop/1]).
 
-start(_, _) ->
-    io:format("rocketmq_app start--------------------------AAAAAAAAA"),
-    rocketmq_sup:start_link().
+start(_, _) -> rocketmq_sup:start_link().
 
 stop(_) -> ok.
 

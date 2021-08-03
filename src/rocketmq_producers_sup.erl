@@ -12,18 +12,28 @@
 -export([start_link/0, init/1]).
 -export([ensure_present/4, ensure_absence/2]).
 
+
 start_link() ->
-  supervisor:start_link({local, rocketmq_producers_sup}, rocketmq_producers_sup, []).
+  supervisor:start_link({local, rocketmq_producers_sup},
+    rocketmq_producers_sup,
+    []).
 
 init([]) ->
   ets:new(rocketmq_topic, [public, named_table]),
-  SupFlags = #{strategy => one_for_one, intensity => 10, period => 5},
+  SupFlags = #{strategy => one_for_one, intensity => 10,
+    period => 5},
   Children = [],
   {ok, {SupFlags, Children}}.
 
-ensure_present(ClientId, ProducerGroup, Topic, ProducerOpts) ->
-  ChildSpec = child_spec(ClientId, ProducerGroup, Topic, ProducerOpts),
-  case supervisor:start_child(rocketmq_producers_sup, ChildSpec) of
+ensure_present(ClientId, ProducerGroup, Topic,
+    ProducerOpts) ->
+  ChildSpec = child_spec(ClientId,
+    ProducerGroup,
+    Topic,
+    ProducerOpts),
+  case supervisor:start_child(rocketmq_producers_sup,
+    ChildSpec)
+  of
     {ok, Pid} -> {ok, Pid};
     {error, {already_started, Pid}} -> {ok, Pid};
     {error, {{already_started, Pid}, _}} -> {ok, Pid};
@@ -32,17 +42,26 @@ ensure_present(ClientId, ProducerGroup, Topic, ProducerOpts) ->
 
 ensure_absence(ClientId, Name) ->
   Id = {ClientId, Name},
-  case supervisor:terminate_child(rocketmq_producers_sup, Id) of
+  case supervisor:terminate_child(rocketmq_producers_sup,
+    Id)
+  of
     ok ->
-      ok = supervisor:delete_child(rocketmq_producers_sup, Id);
+      ok = supervisor:delete_child(rocketmq_producers_sup,
+        Id);
     {error, not_found} -> ok
   end.
 
-child_spec(ClientId, ProducerGroup, Topic, ProducerOpts) ->
+child_spec(ClientId, ProducerGroup, Topic,
+    ProducerOpts) ->
   #{id => {ClientId, get_name(ProducerOpts)},
-    start => {rocketmq_producers, start_link, [ClientId, ProducerGroup, Topic, ProducerOpts]},
+    start =>
+    {rocketmq_producers,
+      start_link,
+      [ClientId, ProducerGroup, Topic, ProducerOpts]},
     restart => transient, type => worker,
     modules => [rocketmq_producer]}.
 
 get_name(ProducerOpts) ->
   maps:get(name, ProducerOpts, rocketmq_producers).
+
+

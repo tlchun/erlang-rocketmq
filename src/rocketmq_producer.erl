@@ -11,8 +11,10 @@
 -behaviour(gen_statem).
 -export([send/2, send_sync/2, send_sync/3]).
 -export([start_link/5, idle/3, connected/3]).
--export([callback_mode/0, init/1, terminate/3, code_change/4]).
-
+-export([callback_mode/0,
+  init/1,
+  terminate/3,
+  code_change/4]).
 
 callback_mode() -> [state_functions].
 
@@ -29,8 +31,11 @@ callback_mode() -> [state_functions].
   requests = #{},
   last_bin = <<>>}).
 
-start_link(QueueId, Topic, Server, ProducerGroup, ProducerOpts) ->
-  gen_statem:start_link(rocketmq_producer,[QueueId, Topic, Server, ProducerGroup, ProducerOpts],[]).
+start_link(QueueId, Topic, Server, ProducerGroup,
+    ProducerOpts) ->
+  gen_statem:start_link(rocketmq_producer,
+    [QueueId, Topic, Server, ProducerGroup, ProducerOpts],
+    []).
 
 send(Pid, Message) ->
   gen_statem:cast(Pid, {send, Message}).
@@ -41,11 +46,13 @@ send_sync(Pid, Message) ->
 send_sync(Pid, Message, Timeout) ->
   gen_statem:call(Pid, {send, Message}, Timeout).
 
-init([QueueId, Topic, Server, ProducerGroup, ProducerOpts]) ->
-  State = #state{
-    producer_group = ProducerGroup,
-    topic = Topic,
-    queue_id = QueueId,
+init([QueueId,
+  Topic,
+  Server,
+  ProducerGroup,
+  ProducerOpts]) ->
+  State = #state{producer_group = ProducerGroup,
+    topic = Topic, queue_id = QueueId,
     callback = maps:get(callback, ProducerOpts, undefined),
     batch_size = maps:get(batch_size, ProducerOpts, 0),
     server = Server,
@@ -53,9 +60,11 @@ init([QueueId, Topic, Server, ProducerGroup, ProducerOpts]) ->
   self() ! connecting,
   {ok, idle, State}.
 
-idle(_, connecting,State = #state{opts = Opts, server = Server}) ->
+idle(_, connecting,
+    State = #state{opts = Opts, server = Server}) ->
   {Host, Port} = parse_url(Server),
-  case gen_tcp:connect(Host, Port,
+  case gen_tcp:connect(Host,
+    Port,
     merge_opts(Opts,
       [binary,
         {packet, raw},
@@ -63,7 +72,8 @@ idle(_, connecting,State = #state{opts = Opts, server = Server}) ->
         {nodelay, true},
         {active, true},
         {reuseaddr, true},
-        {send_timeout, 60000}]), 60000)
+        {send_timeout, 60000}]),
+    60000)
   of
     {ok, Sock} ->
       tune_buffer(Sock),
@@ -252,8 +262,7 @@ parse_url(Server) ->
 log_error(Fmt, Args) ->
   error_logger:error_msg(Fmt, Args).
 
-next_opaque_id(State = #state{opaque_id =
-18445618199572250625}) ->
-  State#state{opaque_id = 1};
+next_opaque_id(State = #state{opaque_id = 18445618199572250625}) -> State#state{opaque_id = 1};
 next_opaque_id(State = #state{opaque_id = OpaqueId}) ->
   State#state{opaque_id = OpaqueId + 1}.
+

@@ -14,3 +14,4 @@
               {registered,[rocketmq_sup]},
               {applications,[kernel,stdlib,jsonr]},
               {mod,{rocketmq_app,[]}}]}.
+

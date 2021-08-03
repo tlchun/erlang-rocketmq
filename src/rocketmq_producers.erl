@@ -8,9 +8,15 @@
 %%%-------------------------------------------------------------------
 
 -module(rocketmq_producers).
-
 -export([start_link/4]).
--export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
+
+-export([code_change/3,
+  handle_call/3,
+  handle_cast/2,
+  handle_info/2,
+  init/1,
+  terminate/2]).
+
 -export([start_supervised/4, stop_supervised/1]).
 -export([pick_producer/1]).
 
@@ -26,13 +32,24 @@
   ref_topic_route_interval = 5000}).
 
 
-start_supervised(ClientId, ProducerGroup, Topic, ProducerOpts) ->
-  {ok, Pid} = rocketmq_producers_sup:ensure_present(ClientId, ProducerGroup, Topic, ProducerOpts),
-  {QueueNums, Workers} = gen_server:call(Pid, get_workers, infinity),
-  {ok, #{client => ClientId, topic => Topic, workers => Workers, queue_nums => QueueNums}}.
+start_supervised(ClientId, ProducerGroup, Topic,
+    ProducerOpts) ->
+  {ok, Pid} =
+    rocketmq_producers_sup:ensure_present(ClientId,
+      ProducerGroup,
+      Topic,
+      ProducerOpts),
+  {QueueNums, Workers} = gen_server:call(Pid,
+    get_workers,
+    infinity),
+  {ok,
+    #{client => ClientId, topic => Topic,
+      workers => Workers, queue_nums => QueueNums}}.
 
-stop_supervised(#{client := ClientId, workers := Workers}) ->
-  rocketmq_producers_sup:ensure_absence(ClientId, Workers).
+stop_supervised(#{client := ClientId,
+  workers := Workers}) ->
+  rocketmq_producers_sup:ensure_absence(ClientId,
+    Workers).
 
 pick_producer(#{workers := Workers,
   queue_nums := QueueNums0, topic := Topic}) ->
@@ -48,20 +65,30 @@ do_pick_producer(QueueNum, QueueNums, Workers) ->
   case is_pid(Pid) andalso is_process_alive(Pid) of
     true -> {QueueNum, Pid};
     false ->
-      R = {QueueNum, Pid} = pick_next_alive(Workers, QueueNum, QueueNums),
-      _ = put(rocketmq_roundrobin,(QueueNum + 1) rem QueueNums),
+      R = {QueueNum, Pid} = pick_next_alive(Workers,
+        QueueNum,
+        QueueNums),
+      _ = put(rocketmq_roundrobin,
+        (QueueNum + 1) rem QueueNums),
       R
   end.
 
 pick_next_alive(Workers, QueueNum, QueueNums) ->
-  pick_next_alive(Workers, (QueueNum + 1) rem QueueNums, QueueNums, _Tried = 1).
+  pick_next_alive(Workers,
+    (QueueNum + 1) rem QueueNums,
+    QueueNums,
+    _Tried = 1).
 
-pick_next_alive(_Workers, _QueueNum, QueueNums, QueueNums) ->
+pick_next_alive(_Workers, _QueueNum, QueueNums,
+    QueueNums) ->
   erlang:error(all_producers_down);
 pick_next_alive(Workers, QueueNum, QueueNums, Tried) ->
   case lookup_producer(Workers, QueueNum) of
     {error, _} ->
-      pick_next_alive(Workers, (QueueNum + 1) rem QueueNums, QueueNums, Tried + 1);
+      pick_next_alive(Workers,
+        (QueueNum + 1) rem QueueNums,
+        QueueNums,
+        Tried + 1);
     Pid ->
       case is_alive(Pid) of
         true -> {QueueNum, Pid};
@@ -286,6 +313,7 @@ do_start_producer(BrokerAddrs, QueueSeq, Producers,
     ProducerOpts),
   ets:insert(Workers, {QueueSeq, Producer}),
   maps:put(Producer, {BrokerAddrs, QueueSeq}, Producers).
+
 
 
 
