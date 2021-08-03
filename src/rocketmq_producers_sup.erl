@@ -12,7 +12,6 @@
 -export([start_link/0, init/1]).
 -export([ensure_present/4, ensure_absence/2]).
 
-
 start_link() ->
   supervisor:start_link({local, rocketmq_producers_sup}, rocketmq_producers_sup, []).
 

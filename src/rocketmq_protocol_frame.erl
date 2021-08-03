@@ -8,12 +8,12 @@
 %%%-------------------------------------------------------------------
 -module(rocketmq_protocol_frame).
 
--module(rocketmq_protocol_frame).
-
--export([get_routeinfo_by_topic/2, send_message_v2/5, send_batch_message_v2/5, heart_beat/3]).
+-export([get_routeinfo_by_topic/2,
+  send_message_v2/5,
+  send_batch_message_v2/5,
+  heart_beat/3]).
 
 -export([parse/1]).
-
 
 get_routeinfo_by_topic(Opaque, Topic) ->
   serialized(105, Opaque, [{<<"extFields">>, [{<<"topic">>, Topic}]}], <<"">>).
@@ -24,7 +24,8 @@ send_message_v2(Opaque, ProducerGroup, Topic, QueueId, {Payload, Properties}) ->
     {<<"b">>, Topic},
     {<<"e">>, integer_to_binary(QueueId)},
     {<<"i">>, Properties},
-    {<<"g">>, integer_to_binary(erlang:system_time(millisecond))}],
+    {<<"g">>, integer_to_binary(erlang:system_time(millisecond))}
+  ],
   serialized(310, Opaque, [{<<"extFields">>, Header ++ message_base()}], Payload).
 
 send_batch_message_v2(Opaque, ProducerGroup, Topic, QueueId, Payloads) ->
@@ -34,18 +35,18 @@ heart_beat(Opaque, ClientID, GroupName) ->
   Payload = [
     {<<"clientID">>, ClientID},
     {<<"consumerDataSet">>, []},
-    {<<"producerDataSet">>, [[{<<"groupName">>, GroupName}],[{<<"groupName">>, <<"CLIENT_INNER_PRODUCER">>}]]}],
+    {<<"producerDataSet">>, [[{<<"groupName">>, GroupName}],[{<<"groupName">>, <<"CLIENT_INNER_PRODUCER">>}]]}
+  ],
   serialized(34, Opaque, jsonr:encode(Payload)).
 
-parse(<<Len:32, HeaderLen:32, HeaderData:HeaderLen/binary, Bin/binary>>) ->
+parse(<<Len:32, HeaderLen:32,HeaderData:HeaderLen/binary, Bin/binary>>) ->
   case Bin == <<>> of
     true -> {jsonr:decode(HeaderData), undefined, Bin};
     false ->
       case Len - 4 - HeaderLen of
         0 -> {jsonr:decode(HeaderData), undefined, Bin};
         PayloadLen ->
-          <<Payload:PayloadLen/binary, Bin1/binary>> = Bin,
-          {jsonr:decode(HeaderData), jsonr:decode(Payload), Bin1}
+          <<Payload:PayloadLen/binary, Bin1/binary>> = Bin,{jsonr:decode(HeaderData), jsonr:decode(Payload), Bin1}
       end
   end;
 parse(Bin) -> {undefined, undefined, Bin}.
