@@ -8,7 +8,6 @@
 %%%-------------------------------------------------------------------
 -module(rocketmq_sup).
 
-
 -behaviour(supervisor).
 -export([start_link/0, init/1]).
 

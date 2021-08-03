@@ -17,50 +17,35 @@
 
 
 get_routeinfo_by_topic(Opaque, Topic) ->
-  serialized(105,
-    Opaque,
-    [{<<"extFields">>, [{<<"topic">>, Topic}]}],
-    <<"">>).
+  serialized(105, Opaque, [{<<"extFields">>, [{<<"topic">>, Topic}]}], <<"">>).
 
-send_message_v2(Opaque, ProducerGroup, Topic, QueueId,
-    {Payload, Properties}) ->
+send_message_v2(Opaque, ProducerGroup, Topic, QueueId, {Payload, Properties}) ->
   Header = [{<<"a">>, ProducerGroup},
     {<<"b">>, Topic},
     {<<"e">>, integer_to_binary(QueueId)},
     {<<"i">>, Properties},
-    {<<"g">>,
-      integer_to_binary(erlang:system_time(millisecond))}],
-  serialized(310,
-    Opaque,
-    [{<<"extFields">>, Header ++ message_base()}],
-    Payload).
+    {<<"g">>, integer_to_binary(erlang:system_time(millisecond))}],
+  serialized(310, Opaque, [{<<"extFields">>, Header ++ message_base()}], Payload).
 
-send_batch_message_v2(Opaque, ProducerGroup, Topic,
-    QueueId, Payloads) ->
-  send_message_v2(Opaque,
-    ProducerGroup,
-    Topic,
-    QueueId,
-    {batch_message(Payloads), <<>>}).
+send_batch_message_v2(Opaque, ProducerGroup, Topic, QueueId, Payloads) ->
+  send_message_v2(Opaque, ProducerGroup, Topic, QueueId, {batch_message(Payloads), <<>>}).
 
 heart_beat(Opaque, ClientID, GroupName) ->
   Payload = [{<<"clientID">>, ClientID},
     {<<"consumerDataSet">>, []},
-    {<<"producerDataSet">>,
-      [[{<<"groupName">>, GroupName}],
-        [{<<"groupName">>, <<"CLIENT_INNER_PRODUCER">>}]]}],
-  serialized(34, Opaque, jsonr:encode(Payload)).
+    {<<"producerDataSet">>,[[{<<"groupName">>, GroupName}], [{<<"groupName">>, <<"CLIENT_INNER_PRODUCER">>}]]}],
+  serialized(34, Opaque, jsone:encode(Payload)).
 
 parse(<<Len:32, HeaderLen:32,
   HeaderData:HeaderLen/binary, Bin/binary>>) ->
   case Bin == <<>> of
-    true -> {jsonr:decode(HeaderData), undefined, Bin};
+    true -> {jsone:decode(HeaderData), undefined, Bin};
     false ->
       case Len - 4 - HeaderLen of
-        0 -> {jsonr:decode(HeaderData), undefined, Bin};
+        0 -> {jsone:decode(HeaderData), undefined, Bin};
         PayloadLen ->
           <<Payload:PayloadLen/binary, Bin1/binary>> = Bin,
-          {jsonr:decode(HeaderData), jsonr:decode(Payload), Bin1}
+          {jsone:decode(HeaderData), jsone:decode(Payload), Bin1}
       end
   end;
 parse(Bin) -> {undefined, undefined, Bin}.
@@ -87,7 +72,7 @@ serialized(Code, Opaque, Payload) ->
 serialized(Code, Opaque, Header0, Payload) ->
   Header = [{<<"code">>, Code}, {<<"opaque">>, Opaque}] ++
     Header0 ++ header_base(),
-  HeaderData = jsonr:encode(Header),
+  HeaderData = jsone:encode(Header),
   HeaderLen = size(HeaderData),
   Len = 4 + HeaderLen + size(Payload),
   <<Len:32, HeaderLen:32, HeaderData/binary,
