@@ -37,6 +37,7 @@ start_supervised(ClientId, ProducerGroup, Topic, ProducerOpts) ->
 stop_supervised(#{client := ClientId, workers := Workers}) ->
   rocketmq_producers_sup:ensure_absence(ClientId, Workers).
 
+%% 获取一个生产者
 pick_producer(#{workers := Workers, queue_nums := QueueNums0, topic := Topic}) ->
   QueueNums1 = case ets:lookup(rocketmq_topic, Topic) of
                  [] -> QueueNums0;
@@ -97,10 +98,14 @@ start_link(ClientId, ProducerGroup, Topic, ProducerOpts) ->
 
 init([ClientId, ProducerGroup, Topic, ProducerOpts]) ->
   erlang:process_flag(trap_exit, true),
+  %% 路由刷新间隔
   RefTopicRouteInterval = maps:get(ref_topic_route_interval, ProducerOpts, 5000),
+  %% 发送一个路由刷新消息
   erlang:send_after(RefTopicRouteInterval, self(), ref_topic_route),
   {ok,
-    #state{topic = Topic, client_id = ClientId,
+    #state{
+      topic = Topic,
+      client_id = ClientId,
       producer_opts = ProducerOpts,
       producer_group = ProducerGroup,
       ref_topic_route_interval = RefTopicRouteInterval,
@@ -114,10 +119,14 @@ handle_call(_Call, _From, State) ->
 
 handle_cast(_Cast, State) -> {noreply, State}.
 
+%% 超时消息处理
 handle_info(timeout, State = #state{client_id = ClientId, topic = Topic}) ->
+  %% 获取客户端
   case rocketmq_client_sup:find_client(ClientId) of
     {ok, Pid} ->
+      %% 获取 客户端关联的主题
       Result = rocketmq_client:get_routeinfo_by_topic(Pid, Topic),
+      %%
       {QueueNums, NewProducers, BrokerDatas} = maybe_start_producer(Pid, Result, State),
       {noreply, State#state{queue_nums = QueueNums, producers = NewProducers, broker_datas = BrokerDatas}};
     {error, Reason} -> {stop, Reason, State}
@@ -135,8 +144,7 @@ handle_info({'EXIT', Pid, _Error}, State = #state{workers = Workers, producers =
 handle_info({start_producer, BrokerAddrs, QueueSeq}, State = #state{producers = Producers}) ->
   NewProducers = do_start_producer(BrokerAddrs, QueueSeq, Producers, State),
   {noreply, State#state{producers = NewProducers}};
-handle_info(ref_topic_route, State = #state{client_id = ClientId, topic = Topic, queue_nums = QueueNums, broker_datas = BrokerDatas, producers = Producers,
-      ref_topic_route_interval = RefTopicRouteInterval}) ->
+handle_info(ref_topic_route, State = #state{client_id = ClientId, topic = Topic, queue_nums = QueueNums, broker_datas = BrokerDatas, producers = Producers, ref_topic_route_interval = RefTopicRouteInterval}) ->
   case rocketmq_client_sup:find_client(ClientId) of
     {ok, Pid} -> erlang:send_after(RefTopicRouteInterval, self(), ref_topic_route),
       case rocketmq_client:get_routeinfo_by_topic(Pid, Topic) of
@@ -174,8 +182,11 @@ maybe_start_producer(Pid, {Header, undefined}, State = #state{topic = Topic}) ->
   maybe_start_producer(Pid, Result, State);
 
 maybe_start_producer(_, {_, Payload}, State = #state{producers = Producers}) ->
+  %% broker 数据
   BrokerDatas = maps:get(<<"brokerDatas">>, Payload, []),
+  %% 队列数据
   QueueDatas = maps:get(<<"queueDatas">>, Payload, []),
+  %%
   {QueueNums, NewProducers} = start_producer(0, BrokerDatas, QueueDatas, Producers, State),
   {QueueNums, NewProducers, BrokerDatas}.
 

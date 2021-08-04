@@ -25,11 +25,11 @@ init([]) ->
 ensure_present(ClientId, ProducerGroup, Topic, ProducerOpts) ->
   %% 子进程描述 {客户端ID ,生产者组，主题，生产者配置}
   ChildSpec = child_spec(ClientId, ProducerGroup, Topic, ProducerOpts),
-  %% 启动
+  %% 启动 rocketmq_producers_sup 子进程 rocketmq_producers
   case supervisor:start_child(rocketmq_producers_sup, ChildSpec) of
-    {ok, Pid} -> {ok, Pid};
-    {error, {already_started, Pid}} -> {ok, Pid};
-    {error, {{already_started, Pid}, _}} -> {ok, Pid};
+    {ok, Pid} -> {ok, Pid}; %% 启动成功
+    {error, {already_started, Pid}} -> {ok, Pid}; %% 已经启动
+    {error, {{already_started, Pid}, _}} -> {ok, Pid};%%
     {error, already_present} -> {error, not_running}
   end.
 

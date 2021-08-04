@@ -53,21 +53,29 @@ init([Servers, Opts]) ->
     Sock -> {ok, State#state{sock = Sock, opaque_id = 1, requests = #{}}}
   end.
 
+%% 通过主题 获取 路由信息
 handle_call({get_routeinfo_by_topic, Topic}, From, State = #state{opaque_id = OpaqueId, sock = Sock, requests = Reqs, servers = Servers}) ->
+  %% 获取socket
   case get_sock(Servers, Sock) of
     error ->
       log_error("Servers: ~p down", [Servers]),
       {noreply, State};
     Sock1 ->
+      %% 组合一个数据包
       Package = rocketmq_protocol_frame:get_routeinfo_by_topic(OpaqueId, Topic),
+      %% 发送到rocketmq
       gen_tcp:send(Sock1, Package),
+      %%
       {noreply, next_opaque_id(State#state{requests = maps:put(OpaqueId, From, Reqs), sock = Sock1})}
   end;
+
+%% 获取状态统计
 handle_call(get_status, _From, State = #state{sock = undefined, servers = Servers}) ->
   case get_sock(Servers, undefined) of
     error -> {reply, false, State};
     Sock -> {reply, true, State#state{sock = Sock}}
   end;
+
 handle_call(get_status, _From, State) ->
   {reply, true, State};
 handle_call(_Req, _From, State) ->

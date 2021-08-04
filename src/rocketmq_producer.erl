@@ -41,8 +41,10 @@ send_sync(Pid, Message, Timeout) ->
   gen_statem:call(Pid, {send, Message}, Timeout).
 
 init([QueueId, Topic, Server, ProducerGroup, ProducerOpts]) ->
-  State = #state{producer_group = ProducerGroup,
-    topic = Topic, queue_id = QueueId,
+  State = #state{
+    producer_group = ProducerGroup,
+    topic = Topic,
+    queue_id = QueueId,
     callback = maps:get(callback, ProducerOpts, undefined),
     batch_size = maps:get(batch_size, ProducerOpts, 0),
     server = Server,
@@ -110,22 +112,14 @@ do_response(Header, Reqs, Callback, Topic) ->
         false ->
           case Callback of
             {M, F, A} ->
-              erlang:apply(M,
-                F,
-                [maps:get(<<"code">>,
-                  Header,
-                  undefined),
-                  Topic]
-                ++ A);
+              erlang:apply(M, F, [maps:get(<<"code">>, Header, undefined), Topic] ++ A);
             _ ->
-              Callback(maps:get(<<"code">>, Header, undefined),
-                Topic)
+              Callback(maps:get(<<"code">>, Header, undefined), Topic)
           end
       end,
       Reqs;
     From ->
-      gen_statem:reply(From,
-        maps:get(<<"code">>, Header, undefined)),
+      gen_statem:reply(From, maps:get(<<"code">>, Header, undefined)),
       maps:remove(Opaque, Reqs)
   end.
 
@@ -135,33 +129,17 @@ start_keepalive() ->
 ping(Sock, ProducerGroup, Opaque) ->
   {ok, {Host, Port}} = inet:sockname(Sock),
   Host1 = inet_parse:ntoa(Host),
-  ClientId = list_to_binary(lists:concat([Host1,
-    "@",
-    Port])),
-  Package = rocketmq_protocol_frame:heart_beat(Opaque,
-    ClientId,
-    ProducerGroup),
+  ClientId = list_to_binary(lists:concat([Host1, "@", Port])),
+  Package = rocketmq_protocol_frame:heart_beat(Opaque, ClientId, ProducerGroup),
   gen_tcp:send(Sock, Package),
   start_keepalive().
 
-send(Sock, ProducerGroup, Topic, Opaque, QueueId,
-    Message) ->
-  Package =
-    rocketmq_protocol_frame:send_message_v2(Opaque,
-      ProducerGroup,
-      Topic,
-      QueueId,
-      Message),
+send(Sock, ProducerGroup, Topic, Opaque, QueueId, Message) ->
+  Package = rocketmq_protocol_frame:send_message_v2(Opaque, ProducerGroup, Topic, QueueId, Message),
   gen_tcp:send(Sock, Package).
 
-batch_send(Sock, ProducerGroup, Topic, Opaque, QueueId,
-    Messages) ->
-  Package =
-    rocketmq_protocol_frame:send_batch_message_v2(Opaque,
-      ProducerGroup,
-      Topic,
-      QueueId,
-      Messages),
+batch_send(Sock, ProducerGroup, Topic, Opaque, QueueId, Messages) ->
+  Package = rocketmq_protocol_frame:send_batch_message_v2(Opaque, ProducerGroup, Topic, QueueId, Messages),
   gen_tcp:send(Sock, Package).
 
 collect_send_calls(0) -> [];
@@ -177,8 +155,7 @@ collect_send_calls(Cnt, Acc) ->
   end.
 
 tune_buffer(Sock) ->
-  {ok, [{recbuf, RecBuf}, {sndbuf, SndBuf}]} =
-    inet:getopts(Sock, [recbuf, sndbuf]),
+  {ok, [{recbuf, RecBuf}, {sndbuf, SndBuf}]} = inet:getopts(Sock, [recbuf, sndbuf]),
   inet:setopts(Sock, [{buffer, max(RecBuf, SndBuf)}]).
 
 merge_opts(Defaults, Options) ->
