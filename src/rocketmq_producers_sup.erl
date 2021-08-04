@@ -23,7 +23,9 @@ init([]) ->
   {ok, {SupFlags, Children}}.
 
 ensure_present(ClientId, ProducerGroup, Topic, ProducerOpts) ->
+  %% 子进程描述 {客户端ID ,生产者组，主题，生产者配置}
   ChildSpec = child_spec(ClientId, ProducerGroup, Topic, ProducerOpts),
+  %% 启动
   case supervisor:start_child(rocketmq_producers_sup, ChildSpec) of
     {ok, Pid} -> {ok, Pid};
     {error, {already_started, Pid}} -> {ok, Pid};
@@ -38,15 +40,11 @@ ensure_absence(ClientId, Name) ->
     {error, not_found} -> ok
   end.
 
-child_spec(ClientId, ProducerGroup, Topic,
-    ProducerOpts) ->
+child_spec(ClientId, ProducerGroup, Topic, ProducerOpts) ->
   #{id => {ClientId, get_name(ProducerOpts)},
-    start =>
-    {rocketmq_producers,
-      start_link,
-      [ClientId, ProducerGroup, Topic, ProducerOpts]},
+    start => {rocketmq_producers, start_link, [ClientId, ProducerGroup, Topic, ProducerOpts]},
     restart => transient, type => worker,
-    modules => [rocketmq_producer]}.
+    modules => [rocketmq_producers]}.
 
 get_name(ProducerOpts) ->
   maps:get(name, ProducerOpts, rocketmq_producers).

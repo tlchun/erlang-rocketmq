@@ -9,11 +9,8 @@
 -module(rocketmq).
 
 -export([start/0]).
-
 -export([ensure_supervised_client/2, ensure_supervised_client/3, stop_and_delete_supervised_client/1]).
-
 -export([ensure_supervised_producers/4, stop_and_delete_supervised_producers/1]).
-
 -export([send/2, send_sync/3]).
 
 
@@ -28,7 +25,9 @@ ensure_supervised_client(ClientId, Hosts, Opts) ->
 stop_and_delete_supervised_client(ClientId) ->
   rocketmq_client_sup:ensure_absence(ClientId).
 
+%% 启动生产者{客户端ID,生产者组，主题，配置}
 ensure_supervised_producers(ClientId, ProducerGroup, Topic, Opts) ->
+
   rocketmq_producers:start_supervised(ClientId, ProducerGroup, Topic, Opts).
 
 stop_and_delete_supervised_producers(Producers) ->

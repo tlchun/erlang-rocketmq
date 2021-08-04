@@ -13,13 +13,10 @@
 
 
 start_link() ->
-  supervisor:start_link({local, rocketmq_sup},
-    rocketmq_sup,
-    []).
+  supervisor:start_link({local, rocketmq_sup}, rocketmq_sup, []).
 
 init([]) ->
-  SupFlags = #{strategy => one_for_all, intensity => 10,
-    period => 5},
+  SupFlags = #{strategy => one_for_all, intensity => 10, period => 5},
   Children = [client_sup(), producers_sup()],
   {ok, {SupFlags, Children}}.
 

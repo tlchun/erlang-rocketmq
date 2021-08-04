@@ -11,10 +11,7 @@
 -behaviour(gen_statem).
 -export([send/2, send_sync/2, send_sync/3]).
 -export([start_link/5, idle/3, connected/3]).
--export([callback_mode/0,
-  init/1,
-  terminate/3,
-  code_change/4]).
+-export([callback_mode/0, init/1, terminate/3, code_change/4]).
 
 callback_mode() -> [state_functions].
 
@@ -31,11 +28,8 @@ callback_mode() -> [state_functions].
   requests = #{},
   last_bin = <<>>}).
 
-start_link(QueueId, Topic, Server, ProducerGroup,
-    ProducerOpts) ->
-  gen_statem:start_link(rocketmq_producer,
-    [QueueId, Topic, Server, ProducerGroup, ProducerOpts],
-    []).
+start_link(QueueId, Topic, Server, ProducerGroup, ProducerOpts) ->
+  gen_statem:start_link(rocketmq_producer,[QueueId, Topic, Server, ProducerGroup, ProducerOpts], []).
 
 send(Pid, Message) ->
   gen_statem:cast(Pid, {send, Message}).
@@ -46,11 +40,7 @@ send_sync(Pid, Message) ->
 send_sync(Pid, Message, Timeout) ->
   gen_statem:call(Pid, {send, Message}, Timeout).
 
-init([QueueId,
-  Topic,
-  Server,
-  ProducerGroup,
-  ProducerOpts]) ->
+init([QueueId, Topic, Server, ProducerGroup, ProducerOpts]) ->
   State = #state{producer_group = ProducerGroup,
     topic = Topic, queue_id = QueueId,
     callback = maps:get(callback, ProducerOpts, undefined),
@@ -60,21 +50,9 @@ init([QueueId,
   self() ! connecting,
   {ok, idle, State}.
 
-idle(_, connecting,
-    State = #state{opts = Opts, server = Server}) ->
+idle(_, connecting, State = #state{opts = Opts, server = Server}) ->
   {Host, Port} = parse_url(Server),
-  case gen_tcp:connect(Host,
-    Port,
-    merge_opts(Opts,
-      [binary,
-        {packet, raw},
-        {reuseaddr, true},
-        {nodelay, true},
-        {active, true},
-        {reuseaddr, true},
-        {send_timeout, 60000}]),
-    60000)
-  of
+  case gen_tcp:connect(Host, Port, merge_opts(Opts, [binary, {packet, raw}, {nodelay, true}, {active, true}, {reuseaddr, true}, {send_timeout, 60000}]), 60000) of
     {ok, Sock} ->
       tune_buffer(Sock),
       gen_tcp:controlling_process(Sock, self()),
@@ -85,75 +63,42 @@ idle(_, connecting,
 idle(_, ping, State = #state{sock = undefined}) ->
   {keep_state, State}.
 
-connected(_EventType, {tcp_closed, Sock},
-    State = #state{sock = Sock}) ->
+connected(_EventType, {tcp_closed, Sock}, State = #state{sock = Sock}) ->
   log_error("TcpClosed producer: ~p~n", [self()]),
   erlang:send_after(5000, self(), connecting),
   {next_state, idle, State#state{sock = undefined}};
 connected(_EventType, {tcp, _, Bin}, State) ->
   handle_response(Bin, State);
-connected({call, From}, {send, Message},
-    State = #state{sock = Sock, topic = Topic,
-      queue_id = QueueId, producer_group = ProducerGroup,
-      opaque_id = Opaque, requests = Reqs}) ->
-  send(Sock,
-    ProducerGroup,
-    Topic,
-    Opaque,
-    QueueId,
-    {Message, <<>>}),
-  {keep_state,
-    next_opaque_id(State#state{requests =
-    maps:put(Opaque, From, Reqs)})};
-connected(cast, {send, Message},
-    State = #state{sock = Sock, topic = Topic,
-      queue_id = QueueId, producer_group = ProducerGroup,
-      opaque_id = Opaque, batch_size = BatchSize}) ->
+connected({call, From}, {send, Message}, State = #state{sock = Sock, topic = Topic, queue_id = QueueId, producer_group = ProducerGroup, opaque_id = Opaque, requests = Reqs}) ->
+  send(Sock, ProducerGroup, Topic, Opaque, QueueId, {Message, <<>>}),
+  {keep_state, next_opaque_id(State#state{requests = maps:put(Opaque, From, Reqs)})};
+connected(cast, {send, Message},State = #state{sock = Sock, topic = Topic, queue_id = QueueId, producer_group = ProducerGroup, opaque_id = Opaque, batch_size = BatchSize}) ->
   case BatchSize =:= 0 of
     true ->
-      send(Sock,
-        ProducerGroup,
-        Topic,
-        Opaque,
-        QueueId,
-        {Message, <<>>});
+      send(Sock, ProducerGroup, Topic, Opaque, QueueId, {Message, <<>>});
     false ->
-      Messages = [{Message, <<>>}
-        | collect_send_calls(BatchSize)],
-      batch_send(Sock,
-        ProducerGroup,
-        Topic,
-        Opaque,
-        QueueId,
-        Messages)
+      Messages = [{Message, <<>>} | collect_send_calls(BatchSize)],
+      batch_send(Sock, ProducerGroup, Topic, Opaque, QueueId, Messages)
   end,
   {keep_state, next_opaque_id(State)};
-connected(_EventType, ping,
-    State = #state{sock = Sock,
-      producer_group = ProducerGroup, opaque_id = Opaque}) ->
+connected(_EventType, ping, State = #state{sock = Sock, producer_group = ProducerGroup, opaque_id = Opaque}) ->
   ping(Sock, ProducerGroup, Opaque),
   {keep_state, next_opaque_id(State)};
 connected(_EventType, EventContent, State) ->
   handle_response(EventContent, State).
 
-code_change(_Vsn, State, Data, _Extra) ->
-  {ok, State, Data}.
+code_change(_Vsn, State, Data, _Extra) -> {ok, State, Data}.
 
 terminate(_Reason, _StateName, _State) -> ok.
 
 handle_response(<<>>, State) -> {keep_state, State};
-handle_response(Bin,
-    State = #state{requests = Reqs, callback = Callback,
-      topic = Topic, last_bin = LastBin}) ->
-  case rocketmq_protocol_frame:parse(<<LastBin/binary,
-    Bin/binary>>)
-  of
+handle_response(Bin, State = #state{requests = Reqs, callback = Callback, topic = Topic, last_bin = LastBin}) ->
+  case rocketmq_protocol_frame:parse(<<LastBin/binary, Bin/binary>>) of
     {undefined, undefined, Bin1} ->
       {keep_state, State#state{last_bin = Bin1}};
     {Header, _, Bin1} ->
       NewReqs = do_response(Header, Reqs, Callback, Topic),
-      handle_response(Bin1,
-        State#state{requests = NewReqs, last_bin = <<>>})
+      handle_response(Bin1, State#state{requests = NewReqs, last_bin = <<>>})
   end.
 
 do_response(Header, Reqs, Callback, Topic) ->

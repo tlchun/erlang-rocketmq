@@ -10,10 +10,7 @@
 
 -behaviour(supervisor).
 -export([start_link/0, init/1]).
-
--export([ensure_present/3,
-  ensure_absence/1,
-  find_client/1]).
+-export([ensure_present/3, ensure_absence/1, find_client/1]).
 
 
 start_link() ->
@@ -29,21 +26,16 @@ init([]) ->
 
 ensure_present(ClientId, Hosts, Opts) ->
   ChildSpec = child_spec(ClientId, Hosts, Opts),
-  case supervisor:start_child(rocketmq_client_sup,
-    ChildSpec)
-  of
+  case supervisor:start_child(rocketmq_client_sup, ChildSpec) of
     {ok, Pid} -> {ok, Pid};
     {error, {already_started, Pid}} -> {ok, Pid};
     {error, already_present} -> {error, client_not_running}
   end.
 
 ensure_absence(ClientId) ->
-  case supervisor:terminate_child(rocketmq_client_sup,
-    ClientId)
-  of
+  case supervisor:terminate_child(rocketmq_client_sup, ClientId) of
     ok ->
-      ok = supervisor:delete_child(rocketmq_client_sup,
-        ClientId);
+      ok = supervisor:delete_child(rocketmq_client_sup, ClientId);
     {error, not_found} -> ok
   end.
 
@@ -59,8 +51,7 @@ find_client(ClientId) ->
 
 child_spec(ClientId, Hosts, Opts) ->
   #{id => ClientId,
-    start =>
-    {rocketmq_client, start_link, [ClientId, Hosts, Opts]},
+    start => {rocketmq_client, start_link, [ClientId, Hosts, Opts]},
     restart => transient, type => worker,
     modules => [rocketmq_client]}.
 
