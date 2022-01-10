@@ -1,6 +1,6 @@
 {application,rocketmq,
              [{description,"A Erlang client library for Apache RocketMQ"},
-              {vsn,"0.3.2"},
+              {vsn,"0.3.3"},
               {modules,[
                 rocketmq,
                 rocketmq_app,
@@ -12,6 +12,6 @@
                 rocketmq_protocol_frame,
                 rocketmq_sup]},
               {registered,[rocketmq_sup]},
-              {applications,[kernel,stdlib,jsone]},
+              {applications,[kernel,stdlib,jsonr]},
               {mod,{rocketmq_app,[]}}]}.
 

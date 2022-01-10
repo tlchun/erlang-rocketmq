@@ -9,25 +9,31 @@
 -module(rocketmq).
 
 -export([start/0]).
--export([ensure_supervised_client/2, ensure_supervised_client/3, stop_and_delete_supervised_client/1]).
--export([ensure_supervised_producers/4, stop_and_delete_supervised_producers/1]).
--export([send/2, send_sync/3]).
 
+-export([ensure_supervised_client/2,
+  ensure_supervised_client/3,
+  stop_and_delete_supervised_client/1]).
+
+-export([ensure_supervised_producers/4,
+  stop_and_delete_supervised_producers/1]).
+
+-export([send/2, send_sync/3]).
 
 start() -> application:start(rocketmq).
 
 ensure_supervised_client(ClientId, Opts) ->
   rocketmq_client_sup:ensure_present(ClientId, [{"127.0.0.1", 9876}], Opts).
 
+%% 确保监控客户端已经启动 ClientId = emqx_bridge_rocket
+%% Hosts： 服务器列表 [{"localhost", 9876}]
 ensure_supervised_client(ClientId, Hosts, Opts) ->
+%%
   rocketmq_client_sup:ensure_present(ClientId, Hosts, Opts).
 
 stop_and_delete_supervised_client(ClientId) ->
   rocketmq_client_sup:ensure_absence(ClientId).
 
-%% 启动生产者{客户端ID,生产者组，主题，配置}
 ensure_supervised_producers(ClientId, ProducerGroup, Topic, Opts) ->
-
   rocketmq_producers:start_supervised(ClientId, ProducerGroup, Topic, Opts).
 
 stop_and_delete_supervised_producers(Producers) ->

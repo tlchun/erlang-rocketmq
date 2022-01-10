@@ -10,7 +10,9 @@
 -behaviour(application).
 -export([start/2, stop/1]).
 
-start(_, _) -> rocketmq_sup:start_link().
+%% 启动rocketmq
+start(_, _) ->
+  rocketmq_sup:start_link().
 
 stop(_) -> ok.
 
